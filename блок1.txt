@@ -1,0 +1,96 @@
+import numpy as np
+from IPython.display import display, HTML
+
+html = r"""
+<div style="font-family: sans-serif;">
+  <canvas id="drawCanvas" width="280" height="280"
+          style="border:2px solid #444; background:#000; cursor:crosshair;
+                 border-radius:6px; touch-action:none;"></canvas>
+  <div style="margin-top:6px;">
+    <button id="btnClear" style="padding:6px 14px;">Очистить</button>
+    <button id="btnSend"  style="padding:6px 14px; font-weight:bold;">→ Распознать</button>
+    <span id="status" style="margin-left:8px; color:#555;"></span>
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('drawCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const status = document.getElementById('status');
+  let drawing = false;
+
+  function resetCanvas() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  resetCanvas();
+
+  ctx.lineWidth = 20; // Немного увеличили толщину для лучшего сходства с MNIST
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#fff';
+
+  function getPos(evt) {
+    const r = canvas.getBoundingClientRect();
+    const src = evt.touches ? evt.touches[0] : evt;
+    return {
+      x: (src.clientX - r.left) * (canvas.width / r.width),
+      y: (src.clientY - r.top)  * (canvas.height / r.height)
+    };
+  }
+
+  function start(e) {
+    e.preventDefault();
+    drawing = true;
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x + 0.01, p.y + 0.01);
+    ctx.stroke();
+  }
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  function end(e) { drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false});
+  canvas.addEventListener('touchmove',  move,  {passive:false});
+  window.addEventListener('touchend', end);
+
+  document.getElementById('btnClear').onclick = () => {
+    resetCanvas();
+    status.textContent = '';
+  };
+
+  document.getElementById('btnSend').onclick = () => {
+    status.textContent = 'распознаём…';
+    
+    // Сжимаем холст в PNG Base64 строку
+    const dataURL = canvas.toDataURL('image/png');
+    // Отсекаем заголовок "data:image/png;base64,"
+    const b64Data = dataURL.split(',')[1];
+
+    if (window.google && google.colab && google.colab.kernel) {
+      google.colab.kernel
+        .invokeFunction('_receive_canvas', [b64Data], {})
+        .then(() => { status.textContent = 'готово'; })
+        .catch(err => {
+          status.textContent = 'ошибка';
+          console.error('invokeFunction failed:', err);
+        });
+    } else {
+      status.textContent = 'Colab kernel не найден';
+    }
+  };
+})();
+</script>
+"""
+display(HTML(html))
